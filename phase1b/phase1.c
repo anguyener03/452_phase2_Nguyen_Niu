@@ -341,7 +341,6 @@ int join(int *status){
 
     int psr = disableInterrupts();
 
-    currentProcess->state = BLOCKED;
     process *curr = currentProcess->first_child; 
     while (curr != NULL) {
         if (curr->state == FINISHED || curr->state == QUIT) {
@@ -406,7 +405,8 @@ void quit(int status){
     }
      // Store exit status
      curr->exit_status = status;
-     curr->state = QUIT;
+     curr->state = FINISHED;
+     //USLOSS_Console("[DEBUG] quit(): Process %d (%s) is quitting with status %d, state changed to %s \n", curr->pid, curr->name, status, curr->state == FINISHED ? "FINISHED" : "QUIT");
      
      // Wake up the parent if waiting in join()
      if (curr->parent && curr->parent->state == BLOCKED) {
@@ -422,6 +422,7 @@ void quit(int status){
         addToRunQueue(zapper);
         zapper = zapper->nextZap;
     }
+
     // Switch context since current process is quitting   
     dispatcher(); 
     //this should never be reached
@@ -442,8 +443,7 @@ void dumpProcesses(void) {
 
     for (int i = 0; i < MAXPROC; i++) {
         process *p = &processTable[i];
-
-        if (p->state != EMPTY) {  
+        if (p->state != EMPTY && p->pid != -1) {  
             const char *state;
             char stateBuff[32];
 
@@ -454,6 +454,7 @@ void dumpProcesses(void) {
                 case READY:
                     state = "Runnable";
                     break;
+                case QUIT:
                 case FINISHED:
                     snprintf(stateBuff, sizeof(stateBuff), "Terminated(%d)", p->exit_status);
                     state = stateBuff;
@@ -470,6 +471,7 @@ void dumpProcesses(void) {
         }
     }
 }
+
 /*
 this enable interrupts
 */
@@ -710,9 +712,39 @@ void addToRunQueue(process *proc) {
 }
 
 void zap(int pid) {
-    process *current = &processTable[currentPid];
-    process *target = &processTable[pid];
+    if (isKernel() != 1) {
+        USLOSS_Console("ERROR: Someone attempted to call zap while in user mode!\n");
+        USLOSS_Halt(1);
+    }
 
+    process *current = &processTable[currentPid];
+
+    // Check if the target PID is the same as the current process's PID
+    if (pid == currentProcess->pid) {
+        USLOSS_Console("ERROR: Attempt to zap() itself.\n");
+        USLOSS_Halt(1);
+    }
+
+     // Check if the target PID is 1
+     if (pid == 1) {
+        USLOSS_Console("ERROR: Attempt to zap() init.\n");
+        USLOSS_Halt(1);
+    }
+    // Find the target process in the process table
+    int slot = pid % MAXPROC;
+    process *target = &processTable[slot];
+
+    // Check if the target process exists
+    if (target->state == EMPTY || target->pid != pid) {
+        USLOSS_Console("ERROR: Attempt to zap() a non-existent process.\n", pid);
+        USLOSS_Halt(1);
+    }
+
+    // Check if the target process has already terminated
+    if (target->state == FINISHED || target->state == QUIT) {
+        USLOSS_Console("ERROR: Attempt to zap() a process that is already in the process of dying.\n");
+        USLOSS_Halt(1);
+        }
     // Add the current process to the zap list of the target
     current->nextZap = target->zapList;
     target->zapList = current;
