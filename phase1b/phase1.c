@@ -80,7 +80,6 @@ process *select_next_process(void);
 void context_switch(process *next_proc);
 
 // Run Queue Management
-void addToRunQueue(process *proc); // This is referenced in unblockProc but not implemented
 void dumpRunQueue(void);
 /*
 
@@ -408,7 +407,7 @@ void quit(int status){
      curr->state = FINISHED;
      //USLOSS_Console("[DEBUG] quit(): Process %d (%s) is quitting with status %d, state changed to %s \n", curr->pid, curr->name, status, curr->state == FINISHED ? "FINISHED" : "QUIT");
      
-     // Wake up the parent if waiting in join()
+     // Wake up the parent 
      if (curr->parent && curr->parent->state == BLOCKED) {
         //USLOSS_Console("[DEBUG] quit(): Waking up parent PID %d\n", curr->parent->pid);
         curr->parent->state = READY;
@@ -419,7 +418,7 @@ void quit(int status){
     process *zapper = curr->zapList;
     while (zapper != NULL) {
         zapper->state = READY;
-        addToRunQueue(zapper);
+        enqueue(zapper);
         zapper = zapper->nextZap;
     }
 
@@ -445,7 +444,7 @@ void dumpProcesses(void) {
         process *p = &processTable[i];
         if (p->state != EMPTY && p->pid != -1) {  
             const char *state;
-            char stateBuff[32];
+            char stateBuff[45];
 
             switch (p->state) {
                 case RUNNING:
@@ -457,6 +456,15 @@ void dumpProcesses(void) {
                 case QUIT:
                 case FINISHED:
                     snprintf(stateBuff, sizeof(stateBuff), "Terminated(%d)", p->exit_status);
+                    state = stateBuff;
+                    break;
+                case BLOCKED:
+                    if (p->first_child != NULL) {
+                        snprintf(stateBuff, sizeof(stateBuff), "Blocked(waiting for child to quit)");
+                    }
+                    else{
+                        snprintf(stateBuff, sizeof(stateBuff), "Blocked(waiting for zap target to quit)");
+                    }  
                     state = stateBuff;
                     break;
                 default:
@@ -507,6 +515,10 @@ void dispatcher() {
         USLOSS_Console("ERROR: Someone attempted to call dispatcher while in user mode!\n");
         USLOSS_Halt(1);
     }
+    if (currentProcess != NULL && currentProcess->state == RUNNING) {
+        currentProcess->state = READY;
+    }
+
     //USLOSS_Console("[DEBUG] Dispatcher called. Current process: %d\n", currentProcess ? currentProcess->pid : -1);
     int old_psr = disableInterrupts();
 
@@ -678,7 +690,7 @@ int unblockProc(int pid) {
     proc->state = READY;
 
     // Add the process back to its run queue
-    addToRunQueue(proc);
+    enqueue(proc);
 
     // Call the dispatcher to check if the newly unblocked process should run
     dispatcher();
@@ -689,35 +701,11 @@ int unblockProc(int pid) {
     return 0; // Success
 }
 
-void addToRunQueue(process *proc) {
-    int priority = proc->priority - 1; // Convert priority (1-6) to index (0-5)
-    if (priority < 0 || priority >= 6) {
-        // Handle error: invalid priority
-        return;
-    }
-
-    // Add the process to the end of the queue
-    if (run_queues[priority].head == NULL) {
-        // If the queue is empty, this process becomes the head
-        run_queues[priority].head = proc;
-        run_queues[priority].tail = proc;
-    } else {
-        // Otherwise, add the process to the tail
-        run_queues[priority].tail->next = proc;
-        run_queues[priority].tail = proc;
-    }
-
-    // Ensure the process's next pointer is NULL
-    proc->next = NULL;
-}
-
 void zap(int pid) {
     if (isKernel() != 1) {
         USLOSS_Console("ERROR: Someone attempted to call zap while in user mode!\n");
         USLOSS_Halt(1);
     }
-
-    process *current = &processTable[currentPid];
 
     // Check if the target PID is the same as the current process's PID
     if (pid == currentProcess->pid) {
@@ -746,11 +734,11 @@ void zap(int pid) {
         USLOSS_Halt(1);
         }
     // Add the current process to the zap list of the target
-    current->nextZap = target->zapList;
-    target->zapList = current;
+    currentProcess->nextZap = target->zapList;
+    target->zapList = currentProcess;
 
     // Block the zapper
-    current->state = BLOCKED;
+    currentProcess->state = BLOCKED;
     dispatcher();
 }
 
