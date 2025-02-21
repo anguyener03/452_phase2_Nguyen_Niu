@@ -511,7 +511,6 @@ void dispatcher() {
     int old_psr = disableInterrupts();
 
     process *next_process = select_next_process();
-    
     //USLOSS_Console("[DEBUG] dispatcher(): Switching to PID %d (%s)\n", next_process->pid, next_process->name);
     if (next_process != currentProcess) {
         context_switch(next_process);
@@ -632,6 +631,7 @@ void context_switch(process *next_proc) {
 
     // Update the current process pointer
     process *old_proc = currentProcess;
+    next_proc->state = RUNNING;
     currentProcess = next_proc;
 
     // Load the next process's state
