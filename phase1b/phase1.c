@@ -459,12 +459,15 @@ void dumpProcesses(void) {
                     state = stateBuff;
                     break;
                 case BLOCKED:
-                    if (p->first_child != NULL) {
+                    if (p->first_child != NULL && p -> zapList == NULL) {
                         snprintf(stateBuff, sizeof(stateBuff), "Blocked(waiting for child to quit)");
                     }
-                    else{
+                   if(p->zapList != NULL){
                         snprintf(stateBuff, sizeof(stateBuff), "Blocked(waiting for zap target to quit)");
-                    }  
+                   }
+                   else{
+                    snprintf(stateBuff, sizeof(stateBuff), "Blocked(waiting for zap target to quit)");
+                   }
                     state = stateBuff;
                     break;
                 default:
