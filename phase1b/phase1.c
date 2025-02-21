@@ -282,6 +282,11 @@ int spork(char *name, int(*func)(void *), void *arg, int stacksize, int priority
     // enqueue the new process
     enqueue(childProcess);
 
+    if (childProcess->priority < currentProcess->priority) {        
+        currentProcess->state = READY;
+        enqueue(currentProcess);
+        dispatcher();
+    }  
     // restores the old ps 
     restorePsr(psr);
     return pid;
@@ -335,6 +340,7 @@ int join(int *status){
     }
 
     int psr = disableInterrupts();
+
     currentProcess->state = BLOCKED;
     process *curr = currentProcess->first_child; 
     while (curr != NULL) {
@@ -349,8 +355,35 @@ int join(int *status){
         }
         curr = curr->next_sibling;
     }
+     // No terminated children found, so block the current process
+     currentProcess->state = BLOCKED;
+
+     // Call the dispatcher to switch to another process
+     dispatcher();
+ 
+     // When the process is unblocked, it will resume here
+     // Now check again for terminated children
+     curr = currentProcess->first_child;
+     while (curr != NULL) {
+         if (curr->state == FINISHED || curr->state == QUIT) {
+             // Found a terminated child
+             *status = curr->exit_status;
+             int pid = curr->pid;
+ 
+             // Remove the child from the parent's list
+             removeChild(currentProcess, curr);
+             numberOfProcesses--;
+ 
+             // Restore interrupts and return the child's PID
+             restorePsr(psr);
+             return pid;
+         }
+         curr = curr->next_sibling;
+     }
+ 
     restorePsr(psr);
-    return join(status);
+    // should not happen
+    return -2;
 }
 
 void quit(int status){
@@ -391,6 +424,8 @@ void quit(int status){
     }
     // Switch context since current process is quitting   
     dispatcher(); 
+    //this should never be reached
+    USLOSS_Halt(1);    
 }
 /**
 Gets the current processes pid
@@ -472,7 +507,9 @@ void dispatcher() {
     }
     //USLOSS_Console("[DEBUG] Dispatcher called. Current process: %d\n", currentProcess ? currentProcess->pid : -1);
     int old_psr = disableInterrupts();
+
     process *next_process = select_next_process();
+    
     //USLOSS_Console("[DEBUG] dispatcher(): Switching to PID %d (%s)\n", next_process->pid, next_process->name);
     if (next_process != currentProcess) {
         context_switch(next_process);
@@ -485,20 +522,22 @@ process *select_next_process() {
         if (run_queues[priority].head != NULL) {
             process *next_process = run_queues[priority].head;
 
+            // Remove the process from the head of the queue
             run_queues[priority].head = next_process->next;
+
+            // If the queue is now empty, update the tail pointer
             if (run_queues[priority].head == NULL) {
                 run_queues[priority].tail = NULL;
-            } else {
-                run_queues[priority].tail->next = next_process;
-                run_queues[priority].tail = next_process;
             }
 
+            // Clear the next pointer of the selected process
             next_process->next = NULL;
 
             return next_process;
         }
     }
     // No runnable processes found
+    //USLOSS_Console("[ERROR] No runnable processes found. Halting.\n");
     USLOSS_Halt(1);
     return NULL;
 } 
@@ -523,7 +562,6 @@ void enqueue(process *proc) {
         run_queues[priority].tail = proc;
     }
     //USLOSS_Console("[DEBUG] DUMPING QUEUSE AFter ENQUEUE\n");
-    //dumpRunQueue();
     // Ensure the process's next pointer is NULL
     proc->next = NULL;
 }
