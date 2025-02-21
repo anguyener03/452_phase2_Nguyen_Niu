@@ -3,15 +3,7 @@ Class: CSC452
 Authors: Adler Nguyen & May Niu
 Project: phase1.c 
 Description: 
-    This project simulates a process manager of an operating system. 
-    Methods include: 
-        - spork()
-        - join()
-        - quit_phase1a
-        - TEMP_switchTo
-
- DELETE THIS LATER - docker run -ti -v .:/root/phase2 ghcr.io/russ-lewis/usloss-m1
-
+This project simulates a process manager of an operating system. 
 */
 
 #include <stdio.h>
@@ -19,6 +11,10 @@ Description:
 #include <string.h>  
 #include <stdlib.h> 
 #include <usloss.h>
+
+/*
+This struct is the process control block
+*/
 typedef enum {
     EMPTY,
     READY,       
@@ -45,11 +41,11 @@ typedef struct process {
     int (*startFunc)(void *);
     void *arg;                       
     void *stack; 
-    struct process *zapList;  // Head of zap list
-    struct process *nextZap;  // Next zapper in the list
-    int timeUsed; // Track time used in current quantum (in ms)
-                   
+    struct process *zapList;  
+    struct process *nextZap;  
+    int timeUsed;  
 } process;
+
 /*
 This struct is a runqueue
 */  
@@ -57,7 +53,6 @@ typedef struct RunQueue {
     process *head;  
     process *tail;  
 } RunQueue;
-
 
 /*
 
@@ -75,17 +70,18 @@ int disableInterrupts(void);
 void removeChild(process *parent, process *child);
 void enqueue(process *proc);
 void removeFromRunQueue(process *proc);
-process *dequeue(int priority);
 process *select_next_process(void);
 void context_switch(process *next_proc);
 
 // Run Queue Management
 void dumpRunQueue(void);
+
 /*
 
 GLOBAL VARIABLES
 
 */
+
 process processTable[MAXPROC];
 process *currentProcess;
 int currentPid = 2;     
@@ -147,7 +143,7 @@ void init_main() {
 
     dispatcher();
 
-    // Wait for all child processes to finish (JOIN)
+    // Wait for all child processes to finish 
     while (1) {
         int status;
         int joined_pid = join(&status);
@@ -193,6 +189,8 @@ void phase1_init(void){
     new_proc->startFunc = (int (*)(void *)) init_main; 
     new_proc->arg = NULL;
     new_proc->stack = malloc(USLOSS_MIN_STACK);
+
+    // error checks
     if (new_proc->stack == NULL) {
         USLOSS_Console("Failed to allocate stack for init\n");
         USLOSS_Halt(1);
@@ -202,6 +200,7 @@ void phase1_init(void){
         USLOSS_Halt(1);
     }
 
+    // initialze new context and enqueue proc
     USLOSS_Context *oneContextPtr = &processTable[index].context;
     USLOSS_ContextInit(oneContextPtr, new_proc->stack, USLOSS_MIN_STACK, NULL, (void (*)(void))init_main);
     enqueue(new_proc);
@@ -240,6 +239,7 @@ int spork(char *name, int(*func)(void *), void *arg, int stacksize, int priority
         currentPid++;
     }
 
+    // error check
     if(childProcess == NULL){
         restorePsr(psr);
         return -1;
@@ -269,13 +269,11 @@ int spork(char *name, int(*func)(void *), void *arg, int stacksize, int priority
     childProcess->exit_status = -1;
     childProcess->startFunc = func;
     childProcess->arg = arg;
-
     childProcess->next_sibling = currentProcess->first_child;
     currentProcess->first_child = childProcess;
-
     numberOfProcesses+=1;
 
-
+    // create context
     USLOSS_ContextInit(&childProcess->context, childProcess->stack, stacksize, NULL, wrapper);
     
     // enqueue the new process
@@ -285,8 +283,8 @@ int spork(char *name, int(*func)(void *), void *arg, int stacksize, int priority
         currentProcess->state = READY;
         enqueue(currentProcess);
         dispatcher();
-    }  
-    // restores the old ps 
+    }
+
     restorePsr(psr);
     return pid;
 }
@@ -295,6 +293,7 @@ int spork(char *name, int(*func)(void *), void *arg, int stacksize, int priority
 Removes a child from the parent's list.
 */
 void removeChild(process *parent, process *child) {
+
     if (!parent || !child) {
         return;
     }
@@ -316,6 +315,7 @@ void removeChild(process *parent, process *child) {
     child->parent = NULL;
     child->pid = -1;
     free(child->stack);
+
 }
 
 
@@ -341,6 +341,8 @@ int join(int *status){
     int psr = disableInterrupts();
 
     process *curr = currentProcess->first_child; 
+
+    //check for terminated children
     while (curr != NULL) {
         if (curr->state == FINISHED || curr->state == QUIT) {
             *status = curr->exit_status; 
@@ -359,8 +361,7 @@ int join(int *status){
      // Call the dispatcher to switch to another process
      dispatcher();
  
-     // When the process is unblocked, it will resume here
-     // Now check again for terminated children
+     // check again for terminated children
      curr = currentProcess->first_child;
      while (curr != NULL) {
          if (curr->state == FINISHED || curr->state == QUIT) {
@@ -380,6 +381,7 @@ int join(int *status){
      }
  
     restorePsr(psr);
+
     // should not happen
     return -2;
 }
@@ -388,23 +390,24 @@ void quit(int status){
     
     //USLOSS_Console("[DEBUG] quit() called by PID %d (%s)\n", currentProcess->pid, currentProcess->name);
     
-    // ensure kernal mode
     if(isKernel() != 1){
         USLOSS_Console("ERROR: Someone attempted to call quit while in user mode!\n");
         USLOSS_Halt(1);
     }
     
-    // get current process
     process *curr = currentProcess;
     
     // check if the current process has children 
+    
     if (curr->first_child != NULL) {
         USLOSS_Console("ERROR: Process pid %d called quit() while it still had children.\n", curr->pid);
         USLOSS_Halt(1);
     }
+
      // Store exit status
      curr->exit_status = status;
      curr->state = FINISHED;
+
      //USLOSS_Console("[DEBUG] quit(): Process %d (%s) is quitting with status %d, state changed to %s \n", curr->pid, curr->name, status, curr->state == FINISHED ? "FINISHED" : "QUIT");
      
      // Wake up the parent 
@@ -422,11 +425,12 @@ void quit(int status){
         zapper = zapper->nextZap;
     }
 
-    // Switch context since current process is quitting   
-    dispatcher(); 
+    dispatcher();
+
     //this should never be reached
     USLOSS_Halt(1);    
 }
+
 /**
 Gets the current processes pid
 */
@@ -487,6 +491,7 @@ void dumpProcesses(void) {
 this enable interrupts
 */
 int enableInterrupts() {
+
     unsigned int old_psr = USLOSS_PsrGet();
     unsigned int new_psr = old_psr | USLOSS_PSR_CURRENT_INT;
     int result = USLOSS_PsrSet(new_psr);
@@ -498,9 +503,10 @@ int enableInterrupts() {
 }
 
 /**
-This helper disable interrupts 
+This disable interrupts 
 */
 int  disableInterrupts() {
+
     unsigned int old_psr = USLOSS_PsrGet();
     unsigned int new_psr = old_psr & ~USLOSS_PSR_CURRENT_INT;
     int result = USLOSS_PsrSet(new_psr);
@@ -510,7 +516,9 @@ int  disableInterrupts() {
     }
     return old_psr;
 }
-
+/*
+This function is the dispatcher. It will be called when a process needs to be switched out.
+*/
 void dispatcher() {
     //USLOSS_Console("[DEBUG] dispatcher(): Entering dispatcher.\n");
     // Check if the current process is in kernel mode
@@ -526,15 +534,23 @@ void dispatcher() {
     int old_psr = disableInterrupts();
 
     process *next_process = select_next_process();
+
     //USLOSS_Console("[DEBUG] dispatcher(): Switching to PID %d (%s)\n", next_process->pid, next_process->name);
     if (next_process != currentProcess) {
         context_switch(next_process);
     }
     restorePsr(old_psr);
 }
+/* Helper function that find the highest priority process in the run queue
+   and returns it. If no process is found, it will return NULL.
+   The function also removes the process from the run queue.
+   */
 
 process *select_next_process() {
+
+    // loop through all queues
     for (int priority = 0; priority < 6; priority++) {
+        // check if the queue is empty
         if (run_queues[priority].head != NULL) {
             process *next_process = run_queues[priority].head;
 
@@ -562,14 +578,16 @@ process *select_next_process() {
 helper function to enqueue the process into the run queue
 */
 void enqueue(process *proc) {
+
    // Enqueuing process %d (%s) in priority queue %d\n", proc->pid, proc->name, proc->priority);
- 
     int priority = proc->priority - 1; 
+    
     // eror check
     if (priority < 0 || priority >= 6) {
         return;
     }
 
+    // special case for empty head
     if (run_queues[priority].head == NULL) {
         run_queues[priority].head = proc;
         run_queues[priority].tail = proc;
@@ -578,7 +596,6 @@ void enqueue(process *proc) {
         run_queues[priority].tail = proc;
     }
     //USLOSS_Console("[DEBUG] DUMPING QUEUSE AFter ENQUEUE\n");
-    // Ensure the process's next pointer is NULL
     proc->next = NULL;
 }
 /*
@@ -593,7 +610,7 @@ void removeFromRunQueue(process *proc) {
 
     process *current = run_queues[priority].head;
     process *prev = NULL;
-
+    // Find the process in the run queue
     while (current != NULL && current != proc) {
         prev = current;
         current = current->next;
@@ -603,6 +620,7 @@ void removeFromRunQueue(process *proc) {
         return;
     }
 
+    // remove from q
     if (prev == NULL) {
         run_queues[priority].head = current->next;
         if (run_queues[priority].head == NULL) {
@@ -616,27 +634,12 @@ void removeFromRunQueue(process *proc) {
     }
     current->next = NULL;
 }
-/*
-helper function to dequeue the process from the run queue
-*/
-process *dequeue(int priority) {
-    int prio = priority - 1;
-    if (run_queues[prio].head == NULL) return NULL;
 
-    process *proc = run_queues[prio].head;
-    run_queues[prio].head = proc->next;
-
-    if (run_queues[prio].head == NULL) {
-        run_queues[prio].tail = NULL; 
-    }
-
-    proc->next = NULL;
-    return proc;
-}
 /*
 This function switches the context to the new process
 */
 void context_switch(process *next_proc) {
+
     if (currentProcess == next_proc) {
         return; 
     }
@@ -658,6 +661,9 @@ void context_switch(process *next_proc) {
     }
 }
 
+/*
+blocks the current process
+*/
 void blockMe() {
     // Disable interrupts to avoid concurrency issues
     int old_psr = disableInterrupts();
@@ -674,7 +680,9 @@ void blockMe() {
     // Restore interrupts
     restorePsr(old_psr);
 }
-
+/*
+unblocks a process at pid
+*/
 int unblockProc(int pid) {
     // Disable interrupts to avoid concurrency issues
     int old_psr = disableInterrupts();
@@ -701,10 +709,14 @@ int unblockProc(int pid) {
     // Restore interrupts
     restorePsr(old_psr);
 
-    return 0; // Success
+    return 0;
 }
 
+/*
+zaps a pid and blocks the current process
+*/
 void zap(int pid) {
+
     if (isKernel() != 1) {
         USLOSS_Console("ERROR: Someone attempted to call zap while in user mode!\n");
         USLOSS_Halt(1);
@@ -721,6 +733,7 @@ void zap(int pid) {
         USLOSS_Console("ERROR: Attempt to zap() init.\n");
         USLOSS_Halt(1);
     }
+
     // Find the target process in the process table
     int slot = pid % MAXPROC;
     process *target = &processTable[slot];
@@ -730,21 +743,23 @@ void zap(int pid) {
         USLOSS_Console("ERROR: Attempt to zap() a non-existent process.\n", pid);
         USLOSS_Halt(1);
     }
-
     // Check if the target process has already terminated
     if (target->state == FINISHED || target->state == QUIT) {
         USLOSS_Console("ERROR: Attempt to zap() a process that is already in the process of dying.\n");
         USLOSS_Halt(1);
         }
+    
     // Add the current process to the zap list of the target
     currentProcess->nextZap = target->zapList;
     target->zapList = currentProcess;
 
     // Block the zapper
     currentProcess->state = BLOCKED;
+
     dispatcher();
 }
-
+/*Helper function to dump all the runqeuesu
+*/
 void dumpRunQueue() {
     USLOSS_Console("\n=========================\n");
     USLOSS_Console(" DUMPING RUN QUEUES\n");
