@@ -1,0 +1,71 @@
+phase2_start_service_processes() called -- currently a NOP
+phase3_start_service_processes() called -- currently a NOP
+phase4_start_service_processes() called -- currently a NOP
+phase5_start_service_processes() called -- currently a NOP
+testcase_main(): started
+EXPECTATION: Attempt to create MAXPROC+2 processes (without calling join() on any of them).  This will work many times but eventually fail because all of the procTable slots are full.  We will only print out info about the failed ones.
+testcase_main(): start 52 processes
+testcase_main(): spork() failed: i=48, pid is -1.
+testcase_main(): spork() failed: i=49, pid is -1.
+testcase_main(): spork() failed: i=50, pid is -1.
+testcase_main(): spork() failed: i=51, pid is -1.
+ PID  PPID  NAME              PRIORITY  STATE
+  50     2  XXp1              2         Terminated(2)
+   1     0  init              6         Runnable
+   2     1  testcase_main     3         Running
+   3     2  XXp1              2         Terminated(2)
+   4     2  XXp1              2         Terminated(2)
+   5     2  XXp1              2         Terminated(2)
+   6     2  XXp1              2         Terminated(2)
+   7     2  XXp1              2         Terminated(2)
+   8     2  XXp1              2         Terminated(2)
+   9     2  XXp1              2         Terminated(2)
+  10     2  XXp1              2         Terminated(2)
+  11     2  XXp1              2         Terminated(2)
+  12     2  XXp1              2         Terminated(2)
+  13     2  XXp1              2         Terminated(2)
+  14     2  XXp1              2         Terminated(2)
+  15     2  XXp1              2         Terminated(2)
+  16     2  XXp1              2         Terminated(2)
+  17     2  XXp1              2         Terminated(2)
+  18     2  XXp1              2         Terminated(2)
+  19     2  XXp1              2         Terminated(2)
+  20     2  XXp1              2         Terminated(2)
+  21     2  XXp1              2         Terminated(2)
+  22     2  XXp1              2         Terminated(2)
+  23     2  XXp1              2         Terminated(2)
+  24     2  XXp1              2         Terminated(2)
+  25     2  XXp1              2         Terminated(2)
+  26     2  XXp1              2         Terminated(2)
+  27     2  XXp1              2         Terminated(2)
+  28     2  XXp1              2         Terminated(2)
+  29     2  XXp1              2         Terminated(2)
+  30     2  XXp1              2         Terminated(2)
+  31     2  XXp1              2         Terminated(2)
+  32     2  XXp1              2         Terminated(2)
+  33     2  XXp1              2         Terminated(2)
+  34     2  XXp1              2         Terminated(2)
+  35     2  XXp1              2         Terminated(2)
+  36     2  XXp1              2         Terminated(2)
+  37     2  XXp1              2         Terminated(2)
+  38     2  XXp1              2         Terminated(2)
+  39     2  XXp1              2         Terminated(2)
+  40     2  XXp1              2         Terminated(2)
+  41     2  XXp1              2         Terminated(2)
+  42     2  XXp1              2         Terminated(2)
+  43     2  XXp1              2         Terminated(2)
+  44     2  XXp1              2         Terminated(2)
+  45     2  XXp1              2         Terminated(2)
+  46     2  XXp1              2         Terminated(2)
+  47     2  XXp1              2         Terminated(2)
+  48     2  XXp1              2         Terminated(2)
+  49     2  XXp1              2         Terminated(2)
+testcase_main(): Calling join() on 52 processes.  The number of 'failed' calls here should be the same as the number of 'failed' spork() calls.
+testcase_main(): join() failed: i=48, pid is -2.
+testcase_main(): join() failed: i=49, pid is -2.
+testcase_main(): join() failed: i=50, pid is -2.
+testcase_main(): join() failed: i=51, pid is -2.
+ PID  PPID  NAME              PRIORITY  STATE
+   1     0  init              6         Runnable
+   2     1  testcase_main     3         Running
+finish(): The simulation is now terminating.

@@ -1,0 +1,29 @@
+phase2_start_service_processes() called -- currently a NOP
+phase3_start_service_processes() called -- currently a NOP
+phase4_start_service_processes() called -- currently a NOP
+phase5_start_service_processes() called -- currently a NOP
+testcase_main(): started
+QUICK SUMMARY: Same as test27, except with different priorities - which means that pid3 is not set by the time that XXp2() attempts to use it.
+testcase_main(): after fork of child 3
+testcase_main(): after fork of child 4
+testcase_main(): after fork of child 5
+testcase_main(): performing first join
+XXp1(): started
+XXp1(): arg = 'XXp1'
+testcase_main(): exit status for child 3 is 1
+testcase_main(): performing second join
+XXp2(): started
+XXp2(): arg = 'XXp2'
+XXp2(): calling zap(5)
+XXp3(): started
+XXp3(): arg = 'XXp3'
+XXp4(): started
+XXp4(): arg = 'XXp4FromXXp3a'
+XXp3(): after fork of child 6
+XXp3(): performing first join
+XXp3(): exit status for child 6 is 4
+testcase_main(): exit status for child 5 is 3
+testcase_main(): performing third join
+XXp2(): zap(5) returned
+testcase_main(): exit status for child 4 is 2
+finish(): The simulation is now terminating.

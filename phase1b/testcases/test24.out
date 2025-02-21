@@ -1,0 +1,33 @@
+phase2_start_service_processes() called -- currently a NOP
+phase3_start_service_processes() called -- currently a NOP
+phase4_start_service_processes() called -- currently a NOP
+phase5_start_service_processes() called -- currently a NOP
+testcase_main(): started
+QUICK SUMMARY: TODO
+XXp1(): creating children
+XXp2(): started, pid = 4, calling blockMe
+XXp2(): started, pid = 5, calling blockMe
+XXp2(): started, pid = 6, calling blockMe
+XXp1(): creating zapper child
+XXp3(): started, pid = 7, calling zap on pid 4
+ PID  PPID  NAME              PRIORITY  STATE
+   1     0  init              6         Runnable
+   2     1  testcase_main     3         Blocked(waiting for child to quit)
+   3     2  XXp1              5         Running
+   4     3  XXp2              3         Blocked(3)
+   5     3  XXp2              3         Blocked(3)
+   6     3  XXp2              3         Blocked(3)
+   7     3  XXp3              4         Blocked(waiting for zap target to quit)
+XXp1(): unblocking children
+XXp2(): pid = 4, after blockMe
+XXp2(): pid = 4
+XXp3(): after call to zap
+XXp2(): pid = 5, after blockMe
+XXp2(): pid = 5
+XXp2(): pid = 6, after blockMe
+XXp2(): pid = 6
+XXp1(): after unblocking 4, result = 0
+XXp1(): after unblocking 5, result = 0
+XXp1(): after unblocking 6, result = 0
+ERROR: Process pid 3 called quit() while it still had children.
+finish(): The simulation is now terminating.
